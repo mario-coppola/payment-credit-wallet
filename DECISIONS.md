@@ -159,3 +159,26 @@ This decision does **not** introduce:
 - domain-specific failure semantics
 - ordering guarantees
 - any new safety boundary beyond effect-level idempotency
+
+## D-005: user_id as TEXT without FK to users table
+
+**Date:** 2026-03-05
+
+### Decision
+`wallets.user_id` is defined as `TEXT NOT NULL UNIQUE` with no foreign key
+constraint referencing a `users` table.
+
+### Rationale
+The wallet service does not own authentication. User identity arrives from
+external sources — Stripe metadata, a JWT, or a separate auth system.
+Introducing a `users` table would couple the wallet schema to a domain
+it does not own.
+
+Referential integrity is enforced at the application layer: the `user_id`
+carried in Stripe metadata is considered trusted by construction.
+
+### Tradeoffs
+- Pro: no coupling to external auth providers
+- Pro: compatible with any auth system (Clerk, Auth.js, custom)
+- Con: no DB-level FK constraint — orphaned wallets are possible
+  if the auth system deletes a user without notifying the wallet service
