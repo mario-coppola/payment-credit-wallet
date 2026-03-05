@@ -1,5 +1,5 @@
 {
-    "name": "reliable-event-processing",
+    "name": "payment-credit-wallet",
     "private": true,
     "packageManager": "pnpm@10.27.0",
     "engines": {
