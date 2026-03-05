@@ -1,5 +1,13 @@
 # Decision Log
 
+This project is built on top of the reliable-event-processing baseline (M0–M3).
+Decisions D-001 through D-003 describe the foundational infrastructure
+inherited from that baseline. They are preserved as-is for traceability.
+
+New decisions (D-004 onwards) are specific to the payment-credit-wallet domain.
+
+---
+
 This file tracks non-trivial architectural and product decisions.
 Append-only.
 

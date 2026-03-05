@@ -1,11 +1,12 @@
 # Guarantees
 
-This document describes the behavioral guarantees and explicit non-guarantees
-introduced by Milestone M1.
-
-It is intentionally scoped to **observable system behavior**, not implementation details.
+This document covers guarantees at two layers:
+1. Infrastructure layer — inherited from reliable-event-processing baseline
+2. Domain layer — credit wallet and Stripe integration (this project)
 
 ---
+
+## Infrastructure guarantees (baseline M0–M3)
 
 ## M0 — System Foundations
 

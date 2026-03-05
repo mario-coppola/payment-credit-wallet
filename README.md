@@ -1,34 +1,40 @@
-# Reliable Event Processing
+# Payment Credit Wallet
 
-## Baseline (post-M3)
+A production-grade credit wallet system with Stripe integration,
+built on top of a reliable event processing baseline.
 
-This repository includes a stable technical baseline capturing the system state after Milestone M3 and the full internal refactor.
+## What this project demonstrates
 
-The baseline represents a functionally complete, auditable, and invariant-preserving system, intentionally agnostic to domain-specific product decisions.
+- Stripe Checkout + webhook processing with signature verification
+- Credit wallet with idempotent top-ups and race-condition-safe deductions
+- Async job processing with bounded retries and audit trail
+- Effect-level idempotency for financial operations
 
-It is provided as a reference point before introducing higher-level business semantics and product-driven features.
-- Baseline release (tagged snapshot):
-https://github.com/mario-coppola/reliable-event-processing/releases/tag/baseline-m3
-- Baseline branch:
-https://github.com/mario-coppola/reliable-event-processing/tree/baseline-m3
+## Built on
 
-The baseline includes:
-- Explicit event ingestion and job processing (M1–M2)
-- Manual, audited human intervention (M3)
-- Read-only operational visibility
-- Strict guarantees and documented non-guarantees
+This project extends [reliable-event-processing](https://github.com/mario-coppola/reliable-event-processing)
+(baseline tag: `baseline-from-reliable-event-processing`).
 
-Further development on main continues after this baseline and may introduce new semantics, automation, or product-specific behavior.
+The baseline provides: event ledger, job queue, worker, bounded retries, manual intervention, audit log.
+
+This project adds: Stripe webhook ingestion, credit wallet, top-up flow, job-based credit processing.
+
+## Stack
+
+Node.js · NestJS · TypeScript · PostgreSQL · Stripe · Vercel
 
 ## Development
 
-See `docs/dev-setup.md` for local development setup instructions.
+See `docs/dev-setup.md` for local setup.
 
-## Problem
-## Goal
-## What this project demonstrates
-## Non-goals
-## High-level architecture
-## Demo / How to try it
+## Architecture
+
+See `docs/architecture.md`.
+
+## Stripe integration
+
+See `docs/stripe-integration.md`.
+
 ## Guarantees & failure modes
-## Project status
+
+See `docs/guarantees.md`.
