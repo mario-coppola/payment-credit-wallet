@@ -16,26 +16,33 @@ Append-only.
 **Date:** 2026-01-05
 
 ### Decision
+
 Adopt a pnpm workspace monorepo with two separate runtime processes:
 
 - `apps/api` — HTTP process for operational endpoints and (later) external event ingestion.
 - `apps/worker` — non-HTTP process for asynchronous/background execution.
 
 Introduce a shared internal package:
+
 - `packages/shared` (`@pkg/shared`) — platform utilities only (structured logger and shutdown/lifecycle helpers).
 
 Provide local runtime dependencies via Docker Compose:
+
 - `infra/docker-compose.yml` — PostgreSQL for local development (no schema/migrations in this phase).
 
 Standardize local developer commands at the repo root:
+
 - `pnpm dev:api`, `pnpm dev:worker`, `pnpm infra:up`
 - Use a shared dev runner script to normalize Ctrl+C shutdown (avoid false failures on SIGINT).
 
 ### Rationale
+
 Reliable event-driven systems require a clear separation between synchronous ingress (HTTP/API) and asynchronous processing (worker). A monorepo/workspace setup keeps dependency management and tooling consistent across processes. Shared platform utilities reduce duplication while preserving boundaries. Docker Compose makes local development reproducible and close to production assumptions.
 
 ### Scope / Non-goals
+
 This decision does **not** define:
+
 - event semantics or provider integrations
 - idempotency, deduplication, retry policies, or ordering guarantees
 - database schema, migrations, or persistence model
@@ -45,6 +52,7 @@ This decision does **not** define:
 **Date:** 2026-01-06
 
 ### Decision
+
 Introduce asynchronous processing in M1 via a database-backed jobs table, while keeping ingestion semantics intentionally simple.
 
 The following constraints are explicitly enforced:
@@ -63,12 +71,15 @@ The following constraints are explicitly enforced:
 - Event ingestion creates the event ledger row and the corresponding job row **atomically within a single database transaction**.
 
 ### Rationale
+
 External events are unreliable and may be duplicated, delayed, or reordered. Recording all events faithfully while deferring idempotency to effect application allows the system to remain auditable, replayable, and correct under real-world conditions.
 
 By scoping idempotency to the effect layer and deferring retries and ordering guarantees, M1 demonstrates correct asynchronous behavior without prematurely introducing complexity better suited for later milestones.
 
 ### Scope / Non-goals
+
 This decision explicitly does **not** introduce:
+
 - event-level deduplication
 - retry or failure recovery mechanisms
 - global or per-entity ordering guarantees
@@ -133,11 +144,13 @@ This decision fixes the retry model for M2 and prevents retry-related complexity
 **Date:** 2026-01-11
 
 ### Decision
+
 Introduce an explicit, manual intervention operation to re-queue a job that is in `failed` state.
 
 This is intentionally **not automation**. It is an operator action used when bounded automated retries (M2) are exhausted or when a human decides to re-run a failed job after external remediation.
 
 ### Operational semantics
+
 - Manual re-queue operates on the **same job row** (no new jobs are created).
 - Preconditions (must be enforced):
   - job `status` must be `failed`
@@ -149,10 +162,13 @@ This is intentionally **not automation**. It is an operator action used when bou
 - Effect-level idempotency remains the safety boundary (manual re-queue does not change this).
 
 ### Rationale
+
 After M2, the system can stop automatically (bounded retries). We need a minimal and explainable way to resume processing **without** introducing DLQ infrastructure, domain semantics, or additional automation. Manual re-queue keeps the system governable and demo-oriented while preserving correctness via effect-level idempotency.
 
 ### Scope / Non-goals
+
 This decision does **not** introduce:
+
 - additional automatic retries or retry policies
 - batch re-queue operations
 - DLQ concepts or external queues
@@ -165,10 +181,12 @@ This decision does **not** introduce:
 **Date:** 2026-03-05
 
 ### Decision
+
 `wallets.user_id` is defined as `TEXT NOT NULL UNIQUE` with no foreign key
 constraint referencing a `users` table.
 
 ### Rationale
+
 The wallet service does not own authentication. User identity arrives from
 external sources — Stripe metadata, a JWT, or a separate auth system.
 Introducing a `users` table would couple the wallet schema to a domain
@@ -178,7 +196,67 @@ Referential integrity is enforced at the application layer: the `user_id`
 carried in Stripe metadata is considered trusted by construction.
 
 ### Tradeoffs
+
 - Pro: no coupling to external auth providers
 - Pro: compatible with any auth system (Clerk, Auth.js, custom)
 - Con: no DB-level FK constraint — orphaned wallets are possible
   if the auth system deletes a user without notifying the wallet service
+
+  ## D-006: SELECT FOR UPDATE per debit concorrenti
+
+**Date:** 2026-03-06
+
+### Decision
+
+Wallet debit operations use `SELECT ... FOR UPDATE` to lock the wallet row
+before applying the balance update.
+
+### Rationale
+
+Two concurrent debit requests reading the same balance before either
+commits would both see sufficient funds and both succeed, resulting in
+a negative balance. FOR UPDATE serializes access: the second request
+waits until the first commits, then reads the updated balance before
+deciding whether to proceed.
+
+The `WHERE balance >= $amount` condition in the UPDATE provides a
+second safety layer, but FOR UPDATE prevents the race condition at
+the source rather than failing after it occurs.
+
+### Tradeoffs
+
+- Pro: race condition prevented at DB level, not application level
+- Pro: second request sees real balance, not stale read
+- Con: serializes concurrent debits on the same wallet (acceptable
+  for a credit wallet where operations are infrequent)
+
+---
+
+## D-007: balance as denormalized column on wallets
+
+**Date:** 2026-03-06
+
+### Decision
+
+`wallets.balance` is a denormalized column updated atomically alongside
+every `wallet_transactions` insert, rather than derived via
+`SUM(wallet_transactions.amount)`.
+
+### Rationale
+
+Deriving balance from transaction history is always consistent by
+definition but requires O(n) reads and has no natural locking point.
+A denormalized column gives O(1) reads and a clear row to lock with
+FOR UPDATE during debit operations.
+
+Invariant: balance and wallet_transactions are always updated in the
+same atomic transaction. wallet_transactions is the source of truth;
+balance is an optimized projection.
+
+### Tradeoffs
+
+- Pro: O(1) balance read
+- Pro: natural lock target for concurrent debit safety
+- Con: drift possible if balance is updated outside the standard
+  service layer — prevented by keeping all wallet mutations in
+  WalletService
