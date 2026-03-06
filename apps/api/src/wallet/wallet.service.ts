@@ -2,12 +2,41 @@ import { Injectable } from '@nestjs/common';
 import { logger } from '@pkg/shared';
 import { db } from '../db';
 import { WalletRepository } from './wallet.repository';
-import type { Wallet, WalletTransaction, CreditParams, DebitParams } from './wallet.types';
+import type {
+  Wallet,
+  WalletTransaction,
+  CreditParams,
+  DebitParams,
+} from './wallet.types';
 import { WalletNotFoundError, isUniqueViolation } from './errors';
 
 @Injectable()
 export class WalletService {
   constructor(private readonly walletRepository: WalletRepository) {}
+
+  async getWallet(userId: string): Promise<Wallet> {
+    const wallet = await this.walletRepository.findByUserId(userId);
+    if (!wallet) {
+      throw new WalletNotFoundError(userId);
+    }
+    return wallet;
+  }
+
+  async getTransactions(
+    userId: string,
+    limit: number,
+    offset: number,
+  ): Promise<WalletTransaction[]> {
+    const wallet = await this.walletRepository.findByUserId(userId);
+    if (!wallet) {
+      throw new WalletNotFoundError(userId);
+    }
+    return this.walletRepository.findTransactionsByWalletId(
+      wallet.id,
+      limit,
+      offset,
+    );
+  }
 
   async getOrCreateWallet(userId: string): Promise<Wallet> {
     const existing = await this.walletRepository.findByUserId(userId);
@@ -32,18 +61,26 @@ export class WalletService {
       await client.query('BEGIN');
 
       try {
-        const wallet = await this.walletRepository.lockWalletForUpdate(walletId, client);
+        const wallet = await this.walletRepository.lockWalletForUpdate(
+          walletId,
+          client,
+        );
         if (!wallet) {
           throw new WalletNotFoundError(walletId);
         }
 
-        const balanceAfter = await this.walletRepository.debitBalanceAndReturnNew(
-          walletId,
-          params.amount,
+        const balanceAfter =
+          await this.walletRepository.debitBalanceAndReturnNew(
+            walletId,
+            params.amount,
+            client,
+          );
+
+        const tx = await this.walletRepository.insertDebitTransaction(
+          params,
+          balanceAfter,
           client,
         );
-
-        const tx = await this.walletRepository.insertDebitTransaction(params, balanceAfter, client);
 
         await client.query('COMMIT');
 
@@ -68,14 +105,19 @@ export class WalletService {
           }
 
           logger.info(
-            { service: 'api', wallet_id: walletId, idempotency_key: idempotencyKey },
+            {
+              service: 'api',
+              wallet_id: walletId,
+              idempotency_key: idempotencyKey,
+            },
             'duplicate debit, skipping',
           );
 
-          const existing = await this.walletRepository.findTransactionByIdempotencyKey(
-            idempotencyKey,
-            client,
-          );
+          const existing =
+            await this.walletRepository.findTransactionByIdempotencyKey(
+              idempotencyKey,
+              client,
+            );
           if (!existing) {
             throw new WalletNotFoundError(walletId);
           }
@@ -103,13 +145,18 @@ export class WalletService {
       await client.query('BEGIN');
 
       try {
-        const balanceAfter = await this.walletRepository.updateBalanceAndReturnNew(
-          walletId,
-          params.amount,
+        const balanceAfter =
+          await this.walletRepository.updateBalanceAndReturnNew(
+            walletId,
+            params.amount,
+            client,
+          );
+
+        const tx = await this.walletRepository.insertTransaction(
+          params,
+          balanceAfter,
           client,
         );
-
-        const tx = await this.walletRepository.insertTransaction(params, balanceAfter, client);
 
         await client.query('COMMIT');
 
@@ -134,14 +181,19 @@ export class WalletService {
           }
 
           logger.info(
-            { service: 'api', wallet_id: walletId, idempotency_key: idempotencyKey },
+            {
+              service: 'api',
+              wallet_id: walletId,
+              idempotency_key: idempotencyKey,
+            },
             'duplicate credit, skipping',
           );
 
-          const existing = await this.walletRepository.findTransactionByIdempotencyKey(
-            idempotencyKey,
-            client,
-          );
+          const existing =
+            await this.walletRepository.findTransactionByIdempotencyKey(
+              idempotencyKey,
+              client,
+            );
           if (!existing) {
             throw new WalletNotFoundError(walletId);
           }

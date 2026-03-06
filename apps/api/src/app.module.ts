@@ -6,8 +6,10 @@ import { AdminService } from './admin/admin.service';
 import { JobsRepository } from './admin/repositories/jobs.repository';
 import { EffectsRepository } from './admin/repositories/effects.repository';
 import { InterventionsRepository } from './admin/repositories/interventions.repository';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
+  imports: [WalletModule],
   controllers: [HealthController, IngestController, AdminController],
   providers: [
     AdminService,

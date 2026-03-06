@@ -15,7 +15,7 @@ export class WalletInsertFailedError extends Error {
 }
 
 export class WalletNotFoundError extends Error {
-  constructor(walletId: number) {
+  constructor(walletId: number | string) {
     super(`Wallet not found: ${walletId}`);
     this.name = 'WalletNotFoundError';
   }

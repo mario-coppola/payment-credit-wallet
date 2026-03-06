@@ -2,8 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { logger } from '@pkg/shared';
 import type { PoolClient } from 'pg';
 import { db } from '../db';
-import type { Wallet, WalletTransaction, CreditParams, DebitParams } from './wallet.types';
-import { WalletInsertFailedError, WalletNotFoundError, InsufficientBalanceError } from './errors';
+import type {
+  Wallet,
+  WalletTransaction,
+  CreditParams,
+  DebitParams,
+} from './wallet.types';
+import {
+  WalletInsertFailedError,
+  WalletNotFoundError,
+  InsufficientBalanceError,
+} from './errors';
 
 @Injectable()
 export class WalletRepository {
@@ -54,6 +63,26 @@ export class WalletRepository {
     );
 
     return res.rows[0] ?? null;
+  }
+
+  async findTransactionsByWalletId(
+    walletId: number,
+    limit: number,
+    offset: number,
+  ): Promise<WalletTransaction[]> {
+    const res = await db.query<WalletTransaction>(
+      `
+      SELECT id, wallet_id, type, amount, balance_after, idempotency_key,
+             reference_id, reference_type, metadata, created_at
+      FROM wallet_transactions
+      WHERE wallet_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+      `,
+      [walletId, limit, offset],
+    );
+
+    return res.rows;
   }
 
   async findTransactionByIdempotencyKey(
@@ -139,7 +168,14 @@ export class WalletRepository {
     balanceAfter: number,
     client: PoolClient,
   ): Promise<WalletTransaction> {
-    const { walletId, amount, idempotencyKey, referenceId, referenceType, metadata } = params;
+    const {
+      walletId,
+      amount,
+      idempotencyKey,
+      referenceId,
+      referenceType,
+      metadata,
+    } = params;
 
     const res = await client.query<WalletTransaction>(
       `
@@ -168,7 +204,14 @@ export class WalletRepository {
     balanceAfter: number,
     client: PoolClient,
   ): Promise<WalletTransaction> {
-    const { walletId, amount, idempotencyKey, referenceId, referenceType, metadata } = params;
+    const {
+      walletId,
+      amount,
+      idempotencyKey,
+      referenceId,
+      referenceType,
+      metadata,
+    } = params;
 
     const res = await client.query<WalletTransaction>(
       `
