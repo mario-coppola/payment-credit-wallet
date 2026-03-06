@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { logger } from '@pkg/shared';
 import { db } from '../db';
 import { WalletRepository } from './wallet.repository';
-import type { Wallet, WalletTransaction, CreditParams } from './wallet.types';
+import type { Wallet, WalletTransaction, CreditParams, DebitParams } from './wallet.types';
 import { WalletNotFoundError, isUniqueViolation } from './errors';
 
 @Injectable()
@@ -21,6 +21,77 @@ export class WalletService {
         if (wallet) return wallet;
       }
       throw err;
+    }
+  }
+
+  async debitWallet(params: DebitParams): Promise<WalletTransaction> {
+    const { walletId, idempotencyKey } = params;
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      try {
+        const wallet = await this.walletRepository.lockWalletForUpdate(walletId, client);
+        if (!wallet) {
+          throw new WalletNotFoundError(walletId);
+        }
+
+        const balanceAfter = await this.walletRepository.debitBalanceAndReturnNew(
+          walletId,
+          params.amount,
+          client,
+        );
+
+        const tx = await this.walletRepository.insertDebitTransaction(params, balanceAfter, client);
+
+        await client.query('COMMIT');
+
+        logger.info(
+          {
+            service: 'api',
+            wallet_id: walletId,
+            amount: params.amount,
+            idempotency_key: idempotencyKey,
+            transaction_id: tx.id,
+          },
+          'wallet debited',
+        );
+
+        return tx;
+      } catch (err: unknown) {
+        if (isUniqueViolation(err)) {
+          try {
+            await client.query('ROLLBACK');
+          } catch {
+            // ignore rollback errors
+          }
+
+          logger.info(
+            { service: 'api', wallet_id: walletId, idempotency_key: idempotencyKey },
+            'duplicate debit, skipping',
+          );
+
+          const existing = await this.walletRepository.findTransactionByIdempotencyKey(
+            idempotencyKey,
+            client,
+          );
+          if (!existing) {
+            throw new WalletNotFoundError(walletId);
+          }
+          return existing;
+        }
+
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // ignore rollback errors
+        }
+
+        throw err;
+      }
+    } finally {
+      client.release();
     }
   }
 

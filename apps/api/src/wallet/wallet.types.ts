@@ -27,3 +27,12 @@ export interface CreditParams {
   referenceType?: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface DebitParams {
+  walletId: number;
+  amount: number;
+  idempotencyKey: string;
+  referenceId?: string;
+  referenceType?: string;
+  metadata?: Record<string, unknown>;
+}
