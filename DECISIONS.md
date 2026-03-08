@@ -260,3 +260,22 @@ balance is an optimized projection.
 - Con: drift possible if balance is updated outside the standard
   service layer — prevented by keeping all wallet mutations in
   WalletService
+
+---
+
+## D-008: SQL queries belong in the repository layer
+
+**Date:** 2026-03-08
+
+### Decision
+
+SQL queries are written exclusively in repository classes.
+Controllers call services; services call repositories.
+No SQL in controllers or services. Applies to all modules.
+
+### Rationale
+
+Keeping SQL in repositories makes queries discoverable, testable
+in isolation, and consistent with the project's layered architecture.
+Controllers and services that contain SQL mix concerns and make
+testing harder.

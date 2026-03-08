@@ -7,19 +7,19 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import Stripe from 'stripe';
-import { logger } from '@pkg/shared';
+import { WebhookService } from './webhook.service';
 
 @Controller('stripe')
 export class WebhookController {
   private readonly stripe: Stripe;
 
-  constructor() {
+  constructor(private readonly webhookService: WebhookService) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
 
   @HttpCode(200)
   @Post('webhook')
-  handleWebhook(
+  async handleWebhook(
     @Body() rawBody: Buffer,
     @Headers('stripe-signature') signature: string,
   ) {
@@ -36,10 +36,7 @@ export class WebhookController {
       return { received: true };
     }
 
-    logger.info(
-      { service: 'api', event_type: event.type, event_id: event.id },
-      'stripe webhook received',
-    );
+    await this.webhookService.ingestCheckoutEvent(event);
 
     return { received: true };
   }
