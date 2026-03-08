@@ -254,6 +254,19 @@ describe('WalletService', () => {
       expect(result).toBe(existingTx);
     });
 
+    it('throws WalletNotFoundError when idempotency key exists but transaction fetch returns null', async () => {
+      // Arrange
+      repo.updateBalanceAndReturnNew.mockResolvedValue(150);
+      repo.insertTransaction.mockRejectedValueOnce({ code: '23505' });
+      repo.findTransactionByIdempotencyKey.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.creditWallet(creditParams)).rejects.toThrow(
+        WalletNotFoundError,
+      );
+      expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    });
+
     it('propagates WalletNotFoundError and executes ROLLBACK', async () => {
       // Arrange
       repo.updateBalanceAndReturnNew.mockRejectedValue(
@@ -349,6 +362,20 @@ describe('WalletService', () => {
         client,
       );
       expect(result).toBe(existingTx);
+    });
+
+    it('throws WalletNotFoundError when idempotency key exists but transaction fetch returns null', async () => {
+      // Arrange
+      repo.lockWalletForUpdate.mockResolvedValue(mockWallet);
+      repo.debitBalanceAndReturnNew.mockResolvedValue(70);
+      repo.insertDebitTransaction.mockRejectedValueOnce({ code: '23505' });
+      repo.findTransactionByIdempotencyKey.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.debitWallet(debitParams)).rejects.toThrow(
+        WalletNotFoundError,
+      );
+      expect(client.query).toHaveBeenCalledWith('ROLLBACK');
     });
   });
 });
