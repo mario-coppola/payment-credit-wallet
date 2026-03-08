@@ -29,3 +29,16 @@ All other event types are ingested and marked done without side effects.
 stripe listen --forward-to localhost:3000/stripe/webhook
 
 Signing secret from CLI output → STRIPE_WEBHOOK_SECRET in .env
+
+## Checkout flow
+
+Client calls `POST /checkout/session`
+→ `StripeService` creates a Checkout Session with metadata (`user_id`, `credits_to_add`)
+→ returns `url`
+→ client redirects the user to the Stripe-hosted checkout page
+→ Stripe handles payment
+→ on completion, Stripe sends `checkout.session.completed` webhook
+
+Note: `credits_to_add` is stored as a string in Stripe metadata (Stripe metadata values
+are always strings). The webhook handler must parse it with `parseInt` before crediting
+the wallet.

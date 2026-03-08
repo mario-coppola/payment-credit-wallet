@@ -49,6 +49,7 @@ Inherited from reliable-event-processing (M0–M3).
 
 - `GET /wallets/:userId` — returns wallet or 404
 - `GET /wallets/:userId/transactions` — paginated list, query params: `limit` (default 20, max 100), `offset` (default 0)
+- `POST /checkout/session` — creates a Stripe Checkout Session, body: `{ userId, priceId, creditsToAdd }`, returns: `{ url, sessionId }`
 
 ## Data flow
 
