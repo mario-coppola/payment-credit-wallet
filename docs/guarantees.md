@@ -1,6 +1,7 @@
 # Guarantees
 
 This document covers guarantees at two layers:
+
 1. Infrastructure layer — inherited from reliable-event-processing baseline
 2. Domain layer — credit wallet and Stripe integration (this project)
 
@@ -13,6 +14,7 @@ This document covers guarantees at two layers:
 M0 defines the foundational constraints of the system.
 
 Guarantees
+
 - Events are append-only once ingested.
 - Each external event is identified by a stable external identifier.
 - No event can be mutated or deleted after ingestion.
@@ -20,6 +22,7 @@ Guarantees
 - The system is restart-safe: crashes do not corrupt invariants.
 
 Non-guarantees
+
 - No processing semantics are defined.
 - No delivery, ordering, or execution guarantees exist.
 - No retries, backoff, or failure handling are implied.
@@ -82,7 +85,7 @@ Milestone M1 intentionally does **not** provide the following guarantees:
 
 - Jobs are processed at-least-once.
 - Idempotency is achieved via effect-level constraints,
-not via exactly-once execution.
+  not via exactly-once execution.
 
 ### No retries or backoff
 
@@ -195,6 +198,7 @@ It only adds explicit retry mechanics around job execution.
 ## How to demo M2
 
 ### Retryable failure that succeeds
+
 1. Ingest a valid event.
 2. Trigger a transient failure (e.g. failpoint).
 3. Observe:
@@ -204,6 +208,7 @@ It only adds explicit retry mechanics around job execution.
 4. Observe successful retry and job completion.
 
 ### Permanent failure
+
 1. Ingest a malformed event.
 2. Observe:
    - job fails immediately
@@ -211,6 +216,7 @@ It only adds explicit retry mechanics around job execution.
    - no retry scheduled.
 
 ### Scheduled retry visibility
+
 1. Query `/admin/jobs`.
 2. Compare:
    - `available_at`
@@ -239,6 +245,7 @@ when automation has definitively stopped (after M2).
 
 M3 does **not extend automation**.
 Instead, it defines a clear boundary between:
+
 - what the system is allowed to do automatically
 - what requires deliberate human decision
 
@@ -337,6 +344,28 @@ M3 introduces **explicit governance without extending automation**:
 - the system remains minimal, explainable, and defensible
 
 M3 closes without introducing:
+
 - DLQ semantics
 - orchestration
 - domain logic
+
+---
+
+## Wallet layer guarantees
+
+### Guarantees
+
+- Wallet balance is never negative (enforced by DB CHECK constraint)
+- Every balance change produces exactly one `wallet_transaction` row
+- `balance` column and `wallet_transactions` are always updated in the same atomic transaction — no intermediate state is observable
+- Concurrent debits are serialized via SELECT FOR UPDATE — no lost updates possible
+- Credit and debit operations are idempotent via UNIQUE `idempotency_key` on `wallet_transactions`
+
+### Non-guarantees
+
+- No wallet-to-wallet transfers (not implemented)
+- No multi-currency support
+- No fractional credits (INTEGER only)
+- `wallet_transactions` are never deleted or modified after creation
+
+---
