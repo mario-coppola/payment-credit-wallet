@@ -73,3 +73,9 @@ export const ingestEventBodySchema = z.object({
   event_type: z.string().trim().min(1, 'event_type must be a non-empty string'),
   payload: z.record(z.unknown()),
 });
+
+export const createCheckoutSessionSchema = z.object({
+  userId: z.string(),
+  priceId: z.string(),
+  creditsToAdd: z.number().int().positive(),
+});

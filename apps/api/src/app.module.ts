@@ -7,9 +7,10 @@ import { JobsRepository } from './admin/repositories/jobs.repository';
 import { EffectsRepository } from './admin/repositories/effects.repository';
 import { InterventionsRepository } from './admin/repositories/interventions.repository';
 import { WalletModule } from './wallet/wallet.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
-  imports: [WalletModule],
+  imports: [WalletModule, StripeModule],
   controllers: [HealthController, IngestController, AdminController],
   providers: [
     AdminService,
