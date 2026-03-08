@@ -8,9 +8,10 @@ import { EffectsRepository } from './admin/repositories/effects.repository';
 import { InterventionsRepository } from './admin/repositories/interventions.repository';
 import { WalletModule } from './wallet/wallet.module';
 import { StripeModule } from './stripe/stripe.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
-  imports: [WalletModule, StripeModule],
+  imports: [WalletModule, StripeModule, WebhookModule],
   controllers: [HealthController, IngestController, AdminController],
   providers: [
     AdminService,
