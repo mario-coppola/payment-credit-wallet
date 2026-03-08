@@ -22,7 +22,7 @@ checkout.session.completed. Used as UNIQUE constraint on credit_topups table.
 |----------------------------|-----------------------|
 | checkout.session.completed | Trigger credit top-up |
 
-All other event types are ingested and marked done without side effects.
+All other event types receive a 200 response with no side effects (silent ignore).
 
 ## Local development
 
@@ -42,3 +42,10 @@ Client calls `POST /checkout/session`
 Note: `credits_to_add` is stored as a string in Stripe metadata (Stripe metadata values
 are always strings). The webhook handler must parse it with `parseInt` before crediting
 the wallet.
+
+## Webhook ingestion guarantees
+
+- Signature verified before any DB write
+- `event_ledger` + `jobs` created in a single atomic transaction
+- Duplicate events (same `event.id`) are silently ignored via 23505 on `external_event_id`
+- Response 200 returned immediately — no synchronous processing
