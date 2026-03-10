@@ -7,14 +7,16 @@ export class CreditTopupRepository {
     client: PoolClient,
     idempotencyKey: string,
     paymentIntentId: string,
-    userId: string,
-    credits: number,
+    walletId: number,
+    amountCents: number,
+    creditsGranted: number,
   ): Promise<void> {
     await client.query(
       `INSERT INTO credit_topups
-        (idempotency_key, payment_intent_id, user_id, credits, status)
-       VALUES ($1, $2, $3, $4, 'pending')`,
-      [idempotencyKey, paymentIntentId, userId, credits],
+        (idempotency_key, payment_intent_id, wallet_id,
+         amount_cents, credits_granted, status)
+       VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [idempotencyKey, paymentIntentId, walletId, amountCents, creditsGranted],
     );
   }
 

@@ -3,6 +3,7 @@ import { logger } from '@pkg/shared';
 import { JobRepository } from './jobs/job.repository';
 import type { Job } from './jobs/job.types';
 import { SubscriptionActivationService } from './handlers/subscription-activation.service';
+import { CreditTopupService } from './handlers/credit-topup.service';
 import { classifyFailure } from './retry/failure-classifier';
 import { shouldRetry, RETRY_DELAY_MS } from './retry/retry.policy';
 import { shouldFailNow } from './dev/failpoint.dev';
@@ -18,6 +19,7 @@ export class WorkerService implements OnModuleInit {
   constructor(
     private readonly jobRepository: JobRepository,
     private readonly subscriptionActivationService: SubscriptionActivationService,
+    private readonly creditTopupService: CreditTopupService,
   ) {}
 
   onModuleInit() {
@@ -55,16 +57,6 @@ export class WorkerService implements OnModuleInit {
 
   private async processJob(job: Job) {
     try {
-      if (job.event_type !== 'subscription.paid') {
-        await this.sleep(200);
-        await this.jobRepository.markDone(job.id);
-        logger.info(
-          { service: 'worker', job_id: job.id, event_type: job.event_type },
-          'job skipped (irrelevant event_type)',
-        );
-        return;
-      }
-
       // DEV-ONLY failpoint: simulate transient failure once per worker process
       if (shouldFailNow()) {
         logger.info(
@@ -74,7 +66,20 @@ export class WorkerService implements OnModuleInit {
         throw new FailpointError();
       }
 
-      await this.subscriptionActivationService.processSubscriptionPaid(job);
+      if (job.event_type === 'subscription.paid') {
+        await this.subscriptionActivationService.processSubscriptionPaid(job);
+      } else if (job.event_type === 'stripe.checkout.session.completed') {
+        await this.creditTopupService.processCheckoutSessionCompleted(job);
+      } else {
+        await this.sleep(200);
+        await this.jobRepository.markDone(job.id);
+        logger.info(
+          { service: 'worker', job_id: job.id, event_type: job.event_type },
+          'job skipped (irrelevant event_type)',
+        );
+        return;
+      }
+
       await this.jobRepository.markDone(job.id);
       logger.info(
         { service: 'worker', job_id: job.id, event_type: job.event_type },

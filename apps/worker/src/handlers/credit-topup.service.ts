@@ -67,9 +67,14 @@ export class CreditTopupService {
         throw new MalformedPayloadError('missing metadata.credits_to_add');
       }
 
+      if (typeof obj['amount_total'] !== 'number') {
+        throw new MalformedPayloadError('missing amount_total');
+      }
+
       const paymentIntentId = obj['payment_intent'];
       const userId = metadata['user_id'];
       const credits = parseInt(metadata['credits_to_add'], 10);
+      const amountCents = obj['amount_total'];
 
       if (isNaN(credits)) {
         throw new MalformedPayloadError('invalid metadata.credits_to_add');
@@ -78,15 +83,16 @@ export class CreditTopupService {
       const idempotencyKey = `credit_topup:${paymentIntentId}`;
 
       try {
+        const wallet = await this.walletService.getOrCreateWallet(userId);
+
         await this.creditTopupRepository.insertPending(
           client,
           idempotencyKey,
           paymentIntentId,
-          userId,
+          wallet.id,
+          amountCents,
           credits,
         );
-
-        const wallet = await this.walletService.getOrCreateWallet(userId);
 
         await this.walletService.creditWallet({
           walletId: wallet.id,
