@@ -369,3 +369,13 @@ M3 closes without introducing:
 - `wallet_transactions` are never deleted or modified after creation
 
 ---
+
+## Stripe integration guarantees
+
+- Each Stripe payment produces exactly one `credit_topup` row
+- Idempotency key: `credit_topup:<payment_intent_id>`
+- Duplicate webhook deliveries are silently ignored (23505 on `credit_topups.idempotency_key` → job marked done, no error)
+- Worker failure before `markSucceeded`: job is retried; the second attempt hits 23505 on `credit_topups` and exits cleanly without re-crediting the wallet
+- Wallet balance is updated atomically with the `wallet_transactions` insert (single `BEGIN/COMMIT` inside `creditWallet`)
+
+---

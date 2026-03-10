@@ -7,7 +7,12 @@
 3. Stripe sends POST /stripe/webhook with event checkout.session.completed
 4. Webhook handler verifies signature with constructEvent
 5. Event persisted to event_ledger + job created (atomic transaction)
-6. Worker processes job → writes credit_topup → updates wallet
+6. Worker claims job from `jobs` table
+7. Worker reads `raw_payload` from `event_ledger`
+8. Extracts `payment_intent_id`, `user_id`, `credits_to_add`, `amount_total` from checkout session object (`data.object`)
+9. Inserts into `credit_topups` with status `pending` (idempotency guard via UNIQUE `idempotency_key`)
+10. Calls `creditWallet` → updates `wallets.balance` and inserts `wallet_transactions` atomically
+11. Updates `credit_topups` status to `succeeded`
 
 ## Idempotency
 
@@ -42,6 +47,18 @@ Client calls `POST /checkout/session`
 Note: `credits_to_add` is stored as a string in Stripe metadata (Stripe metadata values
 are always strings). The webhook handler must parse it with `parseInt` before crediting
 the wallet.
+
+## Payload validation
+
+The worker expects the following fields in `data.object` of the Stripe event:
+
+- `payment_intent` (string) — used as idempotency anchor
+- `amount_total` (number) — payment amount in cents
+- `metadata.user_id` (string) — target user
+- `metadata.credits_to_add` (string, parsed as integer) — credits to grant
+
+If any field is missing or has the wrong type, the worker throws `MalformedPayloadError`.
+This is classified as a permanent failure: the job is not retried.
 
 ## Webhook ingestion guarantees
 
